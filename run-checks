@@ -1,0 +1,9 @@
+#!/usr/bin/env sh
+
+set -e
+set -x
+isort relational.py
+black relational.py
+flake8 relational.py
+mypy relational.py
+pytest relational.py
