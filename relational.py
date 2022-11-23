@@ -76,8 +76,19 @@ class Tests(TestCase):
         self.db.get_users().increase_login_count()
         assert all([user.login_counter == 1 for user in self.db.get_users()])
 
+    def test_can_delete_user(self) -> None:
+        address = self.db.create_address(street="", district="")
+        self.db.create_user(name="delete me", address=address.id)
+        self.db.create_user(name="", address=address.id)
+        deleted_rows = self.db.get_users().with_name("delete me").delete()
+        assert deleted_rows == 1
+        assert len(self.db.get_users()) == 1
+        assert not self.db.get_users().with_name("delete me")
+
 
 class OrderedSet(Generic[T]):
+    __slots__ = ("_items",)
+
     def __init__(self) -> None:
         self._items: OrderedDict[T, None] = OrderedDict()
 
@@ -122,14 +133,14 @@ class OrderedSet(Generic[T]):
         return str(set(self))
 
 
-@dataclass
+@dataclass(slots=True)
 class Address:
     id: UUID
     street: str
     district: str
 
 
-@dataclass
+@dataclass(slots=True)
 class User:
     id: UUID
     name: str
@@ -187,9 +198,21 @@ class UserQuery(UUIDQuery):
         for user_id in items:
             user_model = self.db.users[user_id]
             self.db.users.update_row(
-                id_=user_id, values={"login_counter": user_model.login_counter + 1}
+                id_=user_id, login_counter=user_model.login_counter + 1
             )
         return len(items)
+
+    def delete(self) -> int:
+        items = self._items()
+        for item in items:
+            self.db.users.delete_row(item)
+        return len(items)
+
+    def ids(self) -> IdQuery:
+        return IdQuery(
+            items=self._items,
+            db=self.db,
+        )
 
 
 class IdQuery(UUIDQuery):
@@ -219,36 +242,47 @@ class AddressQuery(UUIDQuery):
 
 
 class Table:
+    __slots__ = ("indexed_columns", "rows", "all_items", "column_indices")
+
     def __init__(self, cls: Type, no_index_fields: Optional[List[str]] = None) -> None:
         blacklist = set(no_index_fields or [])
         blacklist.add("id")
-        self.field_names = {field.name for field in fields(cls)} - blacklist
+        self.indexed_columns = {field.name for field in fields(cls)} - blacklist
         self.rows: Dict[UUID, Any] = dict()
         self.all_items: OrderedSet[UUID] = OrderedSet()
-        self.columns: Dict[str, Dict[Any, OrderedSet[Any]]] = {
-            field: defaultdict(lambda: OrderedSet()) for field in self.field_names
+        self.column_indices: Dict[str, Dict[Any, OrderedSet[Any]]] = {
+            field: defaultdict(lambda: OrderedSet()) for field in self.indexed_columns
         }
 
     def get_by_column(self, column: str, value) -> OrderedSet[UUID]:
-        return self.columns[column][value]
+        return self.column_indices[column][value]
 
     def add_row(self, id_: UUID, row: Any):
-        assert id_ not in self.rows
+        if id_ in self.rows:
+            raise ValueError(f"Row with id {id_} is already present in table")
         self.rows[id_] = row
         self.all_items.add(id_)
-        for column in self.columns:
+        for column in self.column_indices:
             column_value = getattr(row, column)
-            self.columns[column][column_value].add(id_)
+            self.column_indices[column][column_value].add(id_)
 
-    def update_row(self, id_: UUID, values: Dict[str, Any]):
+    def update_row(self, id_: UUID, **values):
         row = self.rows[id_]
         for column, value in values.items():
             old_value = getattr(row, column)
             setattr(row, column, value)
-            if old_value == value or column not in self.field_names:
+            if column not in self.indexed_columns:
                 continue
-            self.columns[column][old_value].remove(id_)
-            self.columns[column][value].add(id_)
+            self.column_indices[column][old_value].remove(id_)
+            self.column_indices[column][value].add(id_)
+
+    def delete_row(self, id_: UUID):
+        row = self.rows[id_]
+        for column in self.indexed_columns:
+            self.column_indices[column][getattr(row, column)].remove(id_)
+        self.all_items.remove(id_)
+        del self.rows[id_]
+        return row
 
     def __getitem__(self, key: UUID):
         return self.rows[key]
@@ -259,8 +293,8 @@ class Table:
     def __delitem__(self, key: UUID) -> None:
         self.all_items.remove(key)
         row = self.rows[key]
-        for column in self.field_names:
-            del self.columns[column][getattr(row, column)]
+        for column in self.indexed_columns:
+            del self.column_indices[column][getattr(row, column)]
         del self.rows[key]
 
 
