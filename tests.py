@@ -2,26 +2,14 @@ from __future__ import annotations
 
 import random
 import string
-from collections import OrderedDict, defaultdict
-from dataclasses import dataclass, field, fields
+from dataclasses import dataclass, field
 from timeit import timeit
-from typing import (
-    Any,
-    Callable,
-    Dict,
-    Generic,
-    Hashable,
-    Iterable,
-    Iterator,
-    List,
-    Optional,
-    Type,
-    TypeVar,
-)
+from typing import Callable, Iterator, TypeVar
 from unittest import TestCase
 from uuid import UUID, uuid4
 
-T = TypeVar("T", bound="Hashable")
+from in_memory_relations import OrderedSet, Table
+
 UUIDQueryT = TypeVar("UUIDQueryT", bound="UUIDQuery")
 
 
@@ -86,53 +74,6 @@ class Tests(TestCase):
         assert not self.db.get_users().with_name("delete me")
 
 
-class OrderedSet(Generic[T]):
-    __slots__ = ("_items",)
-
-    def __init__(self) -> None:
-        self._items: OrderedDict[T, None] = OrderedDict()
-
-    @classmethod
-    def from_iter(cls, items: Iterable[T]) -> OrderedSet[T]:
-        container = cls()
-        for item in items:
-            container.add(item)
-        return container
-
-    def sorted(self, *, key: Optional[Callable[[T], Any]] = None) -> OrderedSet[T]:
-        items = list(self)
-        items.sort(key=key)
-        return type(self).from_iter(items)
-
-    def add(self, item: T) -> None:
-        self._items[item] = None
-
-    def extend(self, other: OrderedSet[T]) -> None:
-        self._items.update(other._items)
-
-    def remove(self, item: T) -> None:
-        del self._items[item]
-
-    def __contains__(self, item: T) -> bool:
-        return item in self._items
-
-    def __delitem__(self, item: T) -> None:
-        del self._items[item]
-
-    def __iter__(self) -> Iterator[T]:
-        return iter(self._items)
-
-    def __and__(self, other: OrderedSet[T]) -> OrderedSet[T]:
-        intersection = self._items.keys() & other._items.keys()
-        return self.from_iter(intersection)
-
-    def __len__(self) -> int:
-        return len(self._items)
-
-    def __str__(self) -> str:
-        return str(set(self))
-
-
 @dataclass(slots=True)
 class Address:
     id: UUID
@@ -146,156 +87,6 @@ class User:
     name: str
     address: UUID
     login_counter: int = field(default=0)
-
-
-class UUIDQuery:
-    def __init__(self, items: Callable[[], OrderedSet[UUID]], db: Database):
-        self._items = items
-        self.db = db
-
-    def with_id(self: UUIDQueryT, id_: UUID) -> UUIDQueryT:
-        def new_items():
-            return self._items() & OrderedSet.from_iter([id_])
-
-        return type(self)(
-            items=new_items,
-            db=self.db,
-        )
-
-    def __len__(self) -> int:
-        return len(self._items())
-
-
-class UserQuery(UUIDQuery):
-    def __iter__(self) -> Iterator[User]:
-        for item in self._items():
-            yield self.db.users[item]
-
-    def with_name(self, name: str) -> UserQuery:
-        def new_items() -> OrderedSet[UUID]:
-            return self._items() & self.db.users.get_by_column("name", name)
-
-        return type(self)(
-            items=new_items,
-            db=self.db,
-        )
-
-    def from_district(self, district: str) -> UserQuery:
-        def new_items() -> OrderedSet[UUID]:
-            addresses = set(self.db.get_addresses().in_district(district).ids())
-            results: OrderedSet[UUID] = OrderedSet()
-            for address in addresses:
-                results.extend(self.db.users.get_by_column("address", address))
-            return results & self._items()
-
-        return type(self)(
-            items=new_items,
-            db=self.db,
-        )
-
-    def increase_login_count(self) -> int:
-        items = self._items()
-        for user_id in items:
-            user_model = self.db.users[user_id]
-            self.db.users.update_row(
-                id_=user_id, login_counter=user_model.login_counter + 1
-            )
-        return len(items)
-
-    def delete(self) -> int:
-        items = self._items()
-        for item in items:
-            self.db.users.delete_row(item)
-        return len(items)
-
-    def ids(self) -> IdQuery:
-        return IdQuery(
-            items=self._items,
-            db=self.db,
-        )
-
-
-class IdQuery(UUIDQuery):
-    def __iter__(self) -> Iterator[UUID]:
-        yield from self._items()
-
-
-class AddressQuery(UUIDQuery):
-    def __iter__(self) -> Iterator[Address]:
-        for item in self._items():
-            yield self.db.addresses[item]
-
-    def in_district(self, district: str) -> AddressQuery:
-        def new_items() -> OrderedSet:
-            return self._items() & self.db.addresses.get_by_column("district", district)
-
-        return type(self)(
-            db=self.db,
-            items=new_items,
-        )
-
-    def ids(self) -> IdQuery:
-        return IdQuery(
-            items=self._items,
-            db=self.db,
-        )
-
-
-class Table:
-    __slots__ = ("indexed_columns", "rows", "all_items", "column_indices")
-
-    def __init__(self, cls: Type, no_index_fields: Optional[List[str]] = None) -> None:
-        blacklist = set(no_index_fields or [])
-        blacklist.add("id")
-        self.indexed_columns = {field.name for field in fields(cls)} - blacklist
-        self.rows: Dict[UUID, Any] = dict()
-        self.all_items: OrderedSet[UUID] = OrderedSet()
-        self.column_indices: Dict[str, Dict[Any, OrderedSet[Any]]] = {
-            field: defaultdict(lambda: OrderedSet()) for field in self.indexed_columns
-        }
-
-    def get_by_column(self, column: str, value) -> OrderedSet[UUID]:
-        return self.column_indices[column][value]
-
-    def add_row(self, id_: UUID, row: Any):
-        if id_ in self.rows:
-            raise ValueError(f"Row with id {id_} is already present in table")
-        self.rows[id_] = row
-        self.all_items.add(id_)
-        for column in self.column_indices:
-            column_value = getattr(row, column)
-            self.column_indices[column][column_value].add(id_)
-
-    def update_row(self, id_: UUID, **values):
-        row = self.rows[id_]
-        for column, value in values.items():
-            old_value = getattr(row, column)
-            setattr(row, column, value)
-            if column not in self.indexed_columns:
-                continue
-            self.column_indices[column][old_value].remove(id_)
-            self.column_indices[column][value].add(id_)
-
-    def delete_row(self, id_: UUID):
-        row = self.rows[id_]
-        for column in self.indexed_columns:
-            self.column_indices[column][getattr(row, column)].remove(id_)
-        self.all_items.remove(id_)
-        del self.rows[id_]
-        return row
-
-    def __getitem__(self, key: UUID):
-        return self.rows[key]
-
-    def __contains__(self, key: UUID) -> bool:
-        return key in self.rows
-
-    def __delitem__(self, key: UUID) -> None:
-        self.all_items.remove(key)
-        row = self.rows[key]
-        for column in self.indexed_columns:
-            del self.column_indices[column][getattr(row, column)]
-        del self.rows[key]
 
 
 @dataclass
@@ -329,6 +120,103 @@ class Database:
 
     def get_users(self) -> UserQuery:
         return UserQuery(items=lambda: self.users.all_items, db=self)
+
+
+class UUIDQuery:
+    def __init__(self, items: Callable[[], OrderedSet[UUID]], db: Database):
+        self._items = items
+        self.db = db
+
+    def with_id(self: UUIDQueryT, id_: UUID) -> UUIDQueryT:
+        def new_items():
+            return self._items() & OrderedSet.from_iter([id_])
+
+        return type(self)(
+            items=new_items,
+            db=self.db,
+        )
+
+    def __len__(self) -> int:
+        return len(self._items())
+
+
+class UserQuery(UUIDQuery):
+    def __iter__(self) -> Iterator[User]:
+        for item in self._items():
+            yield self.db.users[item]
+
+    def with_name(self, name: str) -> UserQuery:
+        def new_items() -> OrderedSet[UUID]:
+            return self._items() & self.db.users.get_row_by_index_column("name", name)
+
+        return type(self)(
+            items=new_items,
+            db=self.db,
+        )
+
+    def from_district(self, district: str) -> UserQuery:
+        def new_items() -> OrderedSet[UUID]:
+            addresses = set(self.db.get_addresses().in_district(district).ids())
+            results: OrderedSet[UUID] = OrderedSet()
+            for address in addresses:
+                results.extend(
+                    self.db.users.get_row_by_index_column("address", address)
+                )
+            return results & self._items()
+
+        return type(self)(
+            items=new_items,
+            db=self.db,
+        )
+
+    def increase_login_count(self) -> int:
+        items = self._items()
+        for user_id in items:
+            user_model = self.db.users[user_id]
+            self.db.users.update_row(
+                id_=user_id, login_counter=user_model.login_counter + 1
+            )
+        return len(items)
+
+    def delete(self) -> int:
+        items = self._items()
+        for item in items:
+            del self.db.users[item]
+        return len(items)
+
+    def ids(self) -> IdQuery:
+        return IdQuery(
+            items=self._items,
+            db=self.db,
+        )
+
+
+class IdQuery(UUIDQuery):
+    def __iter__(self) -> Iterator[UUID]:
+        yield from self._items()
+
+
+class AddressQuery(UUIDQuery):
+    def __iter__(self) -> Iterator[Address]:
+        for item in self._items():
+            yield self.db.addresses[item]
+
+    def in_district(self, district: str) -> AddressQuery:
+        def new_items() -> OrderedSet:
+            return self._items() & self.db.addresses.get_row_by_index_column(
+                "district", district
+            )
+
+        return type(self)(
+            db=self.db,
+            items=new_items,
+        )
+
+    def ids(self) -> IdQuery:
+        return IdQuery(
+            items=self._items,
+            db=self.db,
+        )
 
 
 def print_timing(

@@ -7,5 +7,5 @@ multi_line_output = 3
 
 [tool.mypy]
 files = [
-    "relational.py",
+    "in_memory_relations", "tests.py"
 ]
