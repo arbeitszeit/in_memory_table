@@ -11,7 +11,7 @@ authors = [
 ]
 
 [project.scripts]
-tests-database = "in_memory_relations.test_database:main"
+tests-database = "in_memory_relations.timings:main"
 
 
 [tool.black]

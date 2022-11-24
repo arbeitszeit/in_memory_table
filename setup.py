@@ -5,6 +5,7 @@ setup(
     ext_modules=mypycify(
         [
             "in_memory_relations/table.py",
+            "in_memory_relations/timings.py",
         ]
     ),
 )
