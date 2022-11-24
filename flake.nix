@@ -10,7 +10,7 @@
       packages.x86_64-linux.default = python.pkgs.callPackage ./package.nix { };
       devShells.x86_64-linux.default = pkgs.mkShell {
         packages =
-          [ python pkgs.cargo pkgs.rustc pkgs.rustfmt pkgs.clippy pkgs.nixfmt ];
+          [ python pkgs.nixfmt ];
       };
     };
 }
