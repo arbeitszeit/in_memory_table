@@ -10,6 +10,9 @@ authors = [
     { name = "Sebastian Jordan", email = "sebastian.jordan.mail@googlemail.com"},
 ]
 
+[tool.setuptools]
+packages = [ "in_memory_relations" ]
+
 [project.scripts]
 tests-database = "in_memory_relations.timings:main"
 
