@@ -11,20 +11,28 @@ from typing import (
     Iterator,
     List,
     Optional,
+    Protocol,
     Set,
     Type,
     TypeVar,
 )
 from uuid import UUID
 
-T = TypeVar("T")
+
+class HasId(Protocol):
+    @property
+    def id(self) -> UUID:
+        ...
 
 
-class Table(Generic[T]):
-    __slots__ = ("indexed_columns", "rows", "all_items", "column_indices")
+Row = TypeVar("Row", bound=HasId)
+
+
+class Table(Generic[Row]):
+    __slots__ = ("rows", "all_items", "column_indices")
 
     def __init__(
-        self, cls: Type[T], no_index_fields: Optional[List[str]] = None
+        self, cls: Type[Row], no_index_fields: Optional[List[str]] = None
     ) -> None:
         """Create a new Table from a dataclass cls. cls must provide
         an id field. Every field of cls will be indexed unless the
@@ -32,19 +40,23 @@ class Table(Generic[T]):
         """
         blacklist: Set[str] = set(no_index_fields or [])
         blacklist.add("id")
-        self.indexed_columns: Set[str] = {
-            field.name for field in fields(cls)
-        } - blacklist
+        indexed_columns: Set[str] = {field.name for field in fields(cls)} - blacklist
         self.rows: Dict[UUID, Any] = dict()
         self.all_items: Set[UUID] = set()
         self.column_indices: Dict[str, Dict[Any, Set[UUID]]] = {
-            field: defaultdict(set) for field in self.indexed_columns
+            field: defaultdict(set) for field in indexed_columns
         }
 
     def get_row_by_index_column(self, column: str, value: Hashable) -> Set[UUID]:
+        """Get all ids where the row has a specific value in the
+        specified column.
+        """
         return self.column_indices[column][value]
 
-    def add_row(self, id_: UUID, row: T) -> None:
+    def add_row(self, row: Row) -> None:
+        """Add a row to the table. The caller has to make sure the the
+        id of the specified row is not yet in the database."""
+        id_ = row.id
         if id_ in self.rows:
             raise ValueError(f"Row with id {id_} is already present in table")
         self.rows[id_] = row
@@ -66,19 +78,19 @@ class Table(Generic[T]):
         for column, value in values.items():
             old_value = getattr(row, column)
             setattr(row, column, value)
-            if column not in self.indexed_columns:
+            if column not in self.column_indices:
                 continue
             self.column_indices[column][old_value].remove(id_)
             self.column_indices[column][value].add(id_)
 
-    def delete_row(self, id_: UUID) -> Optional[T]:
+    def delete_row(self, id_: UUID) -> Optional[Row]:
         """The dataclass instance stored in that row will be returned.
         Trying to delete a non existing row will do nothing and None
         is returned."""
         row = self.rows.get(id_)
         if row is None:
             return None
-        for column in self.indexed_columns:
+        for column in self.column_indices:
             self.column_indices[column][getattr(row, column)].remove(id_)
         self.all_items.remove(id_)
         del self.rows[id_]
@@ -101,7 +113,7 @@ class Table(Generic[T]):
         for value in values:
             yield from self.column_indices[column][value]
 
-    def __getitem__(self, key: UUID) -> T:
+    def __getitem__(self, key: UUID) -> Row:
         return self.rows[key]
 
     def __contains__(self, key: UUID) -> bool:

@@ -120,17 +120,16 @@ class Database:
             street=street,
             district=district,
         )
-        self.addresses.add_row(id_=item.id, row=item)
+        self.addresses.add_row(row=item)
         return item
 
     def create_user(self, *, name: str, address: UUID) -> User:
-        assert address in self.addresses
         user = User(
             id=uuid4(),
             name=name,
             address=address,
         )
-        self.users.add_row(id_=user.id, row=user)
+        self.users.add_row(row=user)
         return user
 
     def get_addresses(self) -> AddressQuery:
