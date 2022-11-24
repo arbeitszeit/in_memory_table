@@ -1,3 +1,7 @@
+"""This module serves as an example on how you could use the Table
+class to construct a database that "lives" on the heap/in RAM.
+"""
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -91,17 +95,17 @@ class Tests(TestCase):
 
 @dataclass(slots=True)
 class Address:
-    id: UUID
     street: str
     district: str
+    id: UUID = field(default_factory=uuid4)
 
 
 @dataclass(slots=True)
 class User:
-    id: UUID
     name: str
     address: UUID
     login_counter: int = field(default=0)
+    id: UUID = field(default_factory=uuid4)
 
 
 @dataclass
@@ -113,7 +117,6 @@ class Database:
 
     def create_address(self, *, street: str, district: str) -> Address:
         item = Address(
-            id=uuid4(),
             street=street,
             district=district,
         )
@@ -122,7 +125,6 @@ class Database:
 
     def create_user(self, *, name: str, address: UUID) -> User:
         user = User(
-            id=uuid4(),
             name=name,
             address=address,
         )

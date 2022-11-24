@@ -25,42 +25,39 @@ def null(o: Any) -> None:
     pass
 
 
+def random_string():
+    return "".join(random.choice(string.ascii_letters) for _ in range(10))
+
+
 def main() -> None:
     n = 10000
     print(f"#entries = {n}")
     db = Database()
-    names = list(
-        "".join(random.choice(string.ascii_letters) for _ in range(10))
-        for _ in range(100)
-    )
-    streets = list(
-        "".join(random.choice(string.ascii_letters) for _ in range(10))
-        for _ in range(100)
-    )
-    districts = list(
-        "".join(random.choice(string.ascii_letters) for _ in range(10))
-        for _ in range(100)
-    )
+    names = list(random_string() for _ in range(100))
+    streets = list(random_string() for _ in range(100))
+    districts = list(random_string() for _ in range(100))
     for _ in range(n):
         street = random.choice(streets)
         district = random.choice(districts)
         db.create_address(street=street, district=district)
     addresses = list(db.get_addresses())
     print(f"created {n} addresses")
+    example_district = random.choice(district)
     for _ in range(n):
         name = random.choice(names)
         db.create_user(name=name, address=random.choice(addresses).id)
     print(f"created {n} users")
     print_timing(
-        "address.with_id", lambda: null(list(db.get_addresses().with_id(uuid4())))
+        "address.with_id (non-existing)",
+        lambda: null(list(db.get_addresses().with_id(uuid4()))),
     )
     print_timing(
         "address.in_district",
-        lambda: null(list(db.get_addresses().in_district("abc"))),
+        lambda: null(list(db.get_addresses().in_district(example_district))),
     )
     print_timing(
         "user.from_district",
-        lambda: null(list(db.get_users().from_district("test"))),
+        lambda: null(list(db.get_users().from_district(example_district))),
     )
     print_timing(
         "user.increase_login_count",
