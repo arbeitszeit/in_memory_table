@@ -3,12 +3,13 @@ from __future__ import annotations
 import random
 import string
 from dataclasses import dataclass, field
+from itertools import islice
 from timeit import timeit
-from typing import Callable, Iterator, TypeVar
+from typing import Any, Callable, Iterator, Optional, Set, TypeVar
 from unittest import TestCase
 from uuid import UUID, uuid4
 
-from in_memory_relations import OrderedSet, Table
+from .table import Table
 
 UUIDQueryT = TypeVar("UUIDQueryT", bound="UUIDQuery")
 
@@ -73,6 +74,15 @@ class Tests(TestCase):
         assert len(self.db.get_users()) == 1
         assert not self.db.get_users().with_name("delete me")
 
+    def test_can_order_users_by_name(self) -> None:
+        expected_names = ["a", "c", "e", "b", "a"]
+        address = self.db.create_address(street="", district="")
+        for name in expected_names:
+            self.db.create_user(name=name, address=address.id)
+        assert [user.name for user in self.db.get_users().ordered_by_name()] == sorted(
+            expected_names
+        )
+
 
 @dataclass(slots=True)
 class Address:
@@ -116,25 +126,54 @@ class Database:
         return user
 
     def get_addresses(self) -> AddressQuery:
-        return AddressQuery(items=lambda: self.addresses.all_items, db=self)
+        return AddressQuery(
+            items=lambda: self.addresses.all_items, db=self, ordering=None
+        )
 
     def get_users(self) -> UserQuery:
-        return UserQuery(items=lambda: self.users.all_items, db=self)
+        return UserQuery(items=lambda: self.users.all_items, db=self, ordering=None)
+
+
+@dataclass
+class Ordering:
+    column: str
+    table: str
+    key: Optional[Callable[[Any], Any]] = None
 
 
 class UUIDQuery:
-    def __init__(self, items: Callable[[], OrderedSet[UUID]], db: Database):
+    def __init__(
+        self, items: Callable[[], Set[UUID]], db: Database, ordering: Optional[Ordering]
+    ):
         self._items = items
         self.db = db
+        self.ordering = ordering
 
     def with_id(self: UUIDQueryT, id_: UUID) -> UUIDQueryT:
         def new_items():
-            return self._items() & OrderedSet.from_iter([id_])
+            return self._items() & {
+                id_,
+            }
 
         return type(self)(
             items=new_items,
             db=self.db,
+            ordering=self.ordering,
         )
+
+    def _get_ordered_items(self) -> Iterator[UUID]:
+        if self.ordering:
+            items = self._items()
+            table = getattr(self.db, self.ordering.table)
+            yield from (
+                item
+                for group in table.get_rows_ordered_by_column(
+                    self.ordering.column, key=self.ordering.key
+                )
+                for item in group & items
+            )
+        else:
+            yield from self._items()
 
     def __len__(self) -> int:
         return len(self._items())
@@ -142,24 +181,24 @@ class UUIDQuery:
 
 class UserQuery(UUIDQuery):
     def __iter__(self) -> Iterator[User]:
-        for item in self._items():
-            yield self.db.users[item]
+        yield from (self.db.users[item] for item in self._get_ordered_items())
 
     def with_name(self, name: str) -> UserQuery:
-        def new_items() -> OrderedSet[UUID]:
+        def new_items() -> Set[UUID]:
             return self._items() & self.db.users.get_row_by_index_column("name", name)
 
         return type(self)(
             items=new_items,
             db=self.db,
+            ordering=self.ordering,
         )
 
     def from_district(self, district: str) -> UserQuery:
-        def new_items() -> OrderedSet[UUID]:
+        def new_items() -> Set[UUID]:
             addresses = set(self.db.get_addresses().in_district(district).ids())
-            results: OrderedSet[UUID] = OrderedSet()
+            results: Set[UUID] = set()
             for address in addresses:
-                results.extend(
+                results.update(
                     self.db.users.get_row_by_index_column("address", address)
                 )
             return results & self._items()
@@ -167,6 +206,7 @@ class UserQuery(UUIDQuery):
         return type(self)(
             items=new_items,
             db=self.db,
+            ordering=self.ordering,
         )
 
     def increase_login_count(self) -> int:
@@ -188,6 +228,14 @@ class UserQuery(UUIDQuery):
         return IdQuery(
             items=self._items,
             db=self.db,
+            ordering=self.ordering,
+        )
+
+    def ordered_by_name(self) -> UserQuery:
+        return type(self)(
+            items=self._items,
+            db=self.db,
+            ordering=Ordering("name", table="users"),
         )
 
 
@@ -198,11 +246,11 @@ class IdQuery(UUIDQuery):
 
 class AddressQuery(UUIDQuery):
     def __iter__(self) -> Iterator[Address]:
-        for item in self._items():
+        for item in self._get_ordered_items():
             yield self.db.addresses[item]
 
     def in_district(self, district: str) -> AddressQuery:
-        def new_items() -> OrderedSet:
+        def new_items() -> Set[UUID]:
             return self._items() & self.db.addresses.get_row_by_index_column(
                 "district", district
             )
@@ -210,12 +258,14 @@ class AddressQuery(UUIDQuery):
         return type(self)(
             db=self.db,
             items=new_items,
+            ordering=self.ordering,
         )
 
     def ids(self) -> IdQuery:
         return IdQuery(
             items=self._items,
             db=self.db,
+            ordering=self.ordering,
         )
 
 
@@ -227,32 +277,56 @@ def print_timing(
     print(label, result * 10000, "\u03BCs")
 
 
-def main():
+def null(o: Any) -> None:
+    pass
+
+
+def main() -> None:
     n = 10000
     print(f"#entries = {n}")
     db = Database()
+    names = list(
+        "".join(random.choice(string.ascii_letters) for _ in range(10))
+        for _ in range(100)
+    )
+    streets = list(
+        "".join(random.choice(string.ascii_letters) for _ in range(10))
+        for _ in range(100)
+    )
+    districts = list(
+        "".join(random.choice(string.ascii_letters) for _ in range(10))
+        for _ in range(100)
+    )
     for _ in range(n):
-        street = "".join(random.choice(string.ascii_letters) for _ in range(10))
-        district = "".join(random.choice(string.ascii_letters) for _ in range(10))
-        address = db.create_address(street=street, district=district)
-        name = "".join(random.choice(string.ascii_letters) for _ in range(10))
-        db.create_user(name=name, address=address.id)
-        name = "".join(random.choice(string.ascii_letters) for _ in range(10))
-        db.create_user(name=name, address=address.id)
-    print_timing("address.with_id", lambda: bool(db.get_addresses().with_id(uuid4())))
+        street = random.choice(streets)
+        district = random.choice(districts)
+        db.create_address(street=street, district=district)
+    addresses = list(db.get_addresses())
+    print(f"created {n} addresses")
+    for _ in range(n):
+        name = random.choice(names)
+        db.create_user(name=name, address=random.choice(addresses).id)
+    print(f"created {n} users")
+    print_timing(
+        "address.with_id", lambda: null(list(db.get_addresses().with_id(uuid4())))
+    )
     print_timing(
         "address.in_district",
-        lambda: bool(db.get_addresses().in_district("abc")),
+        lambda: null(list(db.get_addresses().in_district("abc"))),
     )
     print_timing(
         "user.from_district",
-        lambda: bool(db.get_users().from_district(uuid4())),
+        lambda: null(list(db.get_users().from_district("test"))),
     )
     print_timing(
         "user.increase_login_count",
-        lambda: db.get_users().increase_login_count(),
+        lambda: null(db.get_users().increase_login_count()),
     )
-    print_timing("user.count", lambda: len(db.get_users()))
+    print_timing("user.count", lambda: null(len(db.get_users())))
+    print_timing(
+        "user.ordered_by_name (first 10)",
+        lambda: null(list(islice(db.get_users().ordered_by_name(), 10))),
+    )
 
 
 if __name__ == "__main__":

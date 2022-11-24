@@ -2,8 +2,8 @@
 
 set -e
 set -x
-isort .
-black .
+isort in_memory_relations
+black in_memory_relations
 flake8
 mypy
-pytest tests.py
+pytest in_memory_relations

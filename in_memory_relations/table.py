@@ -2,10 +2,20 @@ from __future__ import annotations
 
 from collections import defaultdict
 from dataclasses import fields
-from typing import Any, Dict, Generic, Hashable, List, Optional, Type, TypeVar
+from typing import (
+    Any,
+    Callable,
+    Dict,
+    Generic,
+    Hashable,
+    Iterator,
+    List,
+    Optional,
+    Set,
+    Type,
+    TypeVar,
+)
 from uuid import UUID
-
-from .ordered_set import OrderedSet
 
 T = TypeVar("T")
 
@@ -20,16 +30,18 @@ class Table(Generic[T]):
         an id field. Every field of cls will be indexed unless the
         field name is in no_index_fields.
         """
-        blacklist = set(no_index_fields or [])
+        blacklist: Set[str] = set(no_index_fields or [])
         blacklist.add("id")
-        self.indexed_columns = {field.name for field in fields(cls)} - blacklist
+        self.indexed_columns: Set[str] = {
+            field.name for field in fields(cls)
+        } - blacklist
         self.rows: Dict[UUID, Any] = dict()
-        self.all_items: OrderedSet[UUID] = OrderedSet()
-        self.column_indices: Dict[str, Dict[Any, OrderedSet[Any]]] = {
-            field: defaultdict(lambda: OrderedSet()) for field in self.indexed_columns
+        self.all_items: Set[UUID] = set()
+        self.column_indices: Dict[str, Dict[Any, Set[UUID]]] = {
+            field: defaultdict(set) for field in self.indexed_columns
         }
 
-    def get_row_by_index_column(self, column: str, value: Hashable) -> OrderedSet[UUID]:
+    def get_row_by_index_column(self, column: str, value: Hashable) -> Set[UUID]:
         return self.column_indices[column][value]
 
     def add_row(self, id_: UUID, row: T) -> None:
@@ -41,7 +53,7 @@ class Table(Generic[T]):
             column_value = getattr(row, column)
             self.column_indices[column][column_value].add(id_)
 
-    def update_row(self, id_: UUID, **values) -> None:
+    def update_row(self, id_: UUID, **values: Hashable) -> None:
         """All keyword arguments except id_ must be field names of of
         the indexed dataclass in this table. id may not be
         updated. Trying to update a non existing row will do nothing.
@@ -71,6 +83,13 @@ class Table(Generic[T]):
         self.all_items.remove(id_)
         del self.rows[id_]
         return row
+
+    def get_rows_ordered_by_column(
+        self, column: str, key: Optional[Callable[[Any], Any]] = None
+    ) -> Iterator[Set[UUID]]:
+        values = sorted(self.column_indices[column].keys(), key=key)
+        for value in values:
+            yield self.column_indices[column][value]
 
     def __getitem__(self, key: UUID) -> T:
         return self.rows[key]
