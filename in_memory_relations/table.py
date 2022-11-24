@@ -51,7 +51,10 @@ class Table(Generic[Row]):
         """Get all ids where the row has a specific value in the
         specified column.
         """
-        return self.column_indices[column][value]
+        index = self.column_indices.get(column)
+        if index is None:
+            raise ValueError(f"Column {column} is not indexed")
+        return index[value]
 
     def add_row(self, row: Row) -> None:
         """Add a row to the table. The caller has to make sure the the
