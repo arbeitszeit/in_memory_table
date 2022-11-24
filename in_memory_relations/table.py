@@ -85,11 +85,21 @@ class Table(Generic[T]):
         return row
 
     def get_rows_ordered_by_column(
-        self, column: str, key: Optional[Callable[[Any], Any]] = None
-    ) -> Iterator[Set[UUID]]:
-        values = sorted(self.column_indices[column].keys(), key=key)
+        self,
+        column: str,
+        *,
+        key: Optional[Callable[[Any], Any]] = None,
+        reverse: bool = False,
+    ) -> Iterator[UUID]:
+        """Return all ids ordered by column. The key and reverse
+        arguments function equivalent to the key and reverse arguments
+        of the sorted function.  key changes how elements are
+        compared. If reverse is set to True then the sorting order is
+        reversed.
+        """
+        values = sorted(self.column_indices[column].keys(), key=key, reverse=reverse)
         for value in values:
-            yield self.column_indices[column][value]
+            yield from self.column_indices[column][value]
 
     def __getitem__(self, key: UUID) -> T:
         return self.rows[key]

@@ -3,7 +3,6 @@ from __future__ import annotations
 import random
 import string
 from dataclasses import dataclass, field
-from itertools import islice
 from timeit import timeit
 from typing import Any, Callable, Iterator, Optional, Set, TypeVar
 from unittest import TestCase
@@ -83,6 +82,15 @@ class Tests(TestCase):
             expected_names
         )
 
+    def test_can_order_users_by_name_in_reverse_order(self) -> None:
+        expected_names = ["a", "c", "e", "b", "a"]
+        address = self.db.create_address(street="", district="")
+        for name in expected_names:
+            self.db.create_user(name=name, address=address.id)
+        assert [
+            user.name for user in self.db.get_users().ordered_by_name(reverse=True)
+        ] == sorted(expected_names, reverse=True)
+
 
 @dataclass(slots=True)
 class Address:
@@ -138,6 +146,7 @@ class Database:
 class Ordering:
     column: str
     table: str
+    reverse: bool = False
     key: Optional[Callable[[Any], Any]] = None
 
 
@@ -167,10 +176,12 @@ class UUIDQuery:
             table = getattr(self.db, self.ordering.table)
             yield from (
                 item
-                for group in table.get_rows_ordered_by_column(
-                    self.ordering.column, key=self.ordering.key
+                for item in table.get_rows_ordered_by_column(
+                    self.ordering.column,
+                    key=self.ordering.key,
+                    reverse=self.ordering.reverse,
                 )
-                for item in group & items
+                if item in items
             )
         else:
             yield from self._items()
@@ -231,11 +242,15 @@ class UserQuery(UUIDQuery):
             ordering=self.ordering,
         )
 
-    def ordered_by_name(self) -> UserQuery:
+    def ordered_by_name(self, reverse: bool = False) -> UserQuery:
         return type(self)(
             items=self._items,
             db=self.db,
-            ordering=Ordering("name", table="users"),
+            ordering=Ordering(
+                "name",
+                table="users",
+                reverse=reverse,
+            ),
         )
 
 
@@ -324,8 +339,8 @@ def main() -> None:
     )
     print_timing("user.count", lambda: null(len(db.get_users())))
     print_timing(
-        "user.ordered_by_name (first 10)",
-        lambda: null(list(islice(db.get_users().ordered_by_name(), 10))),
+        "user.ordered_by_name",
+        lambda: null(list(db.get_users().ordered_by_name())),
     )
 
 
