@@ -1,3 +1,7 @@
+"""This module is not meant for public consumption but instead only a
+tool to asses the performance impact of implementation details.
+"""
+
 from __future__ import annotations
 
 import random

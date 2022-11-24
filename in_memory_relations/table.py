@@ -1,13 +1,11 @@
 from __future__ import annotations
 
-from collections import defaultdict
 from dataclasses import fields
 from typing import (
     Any,
     Callable,
     Dict,
     Generic,
-    Hashable,
     Iterator,
     List,
     Optional,
@@ -17,6 +15,8 @@ from typing import (
     TypeVar,
 )
 from uuid import UUID
+
+from .column_index import ColumnIndex, Indexable
 
 
 class HasId(Protocol):
@@ -43,11 +43,11 @@ class Table(Generic[Row]):
         indexed_columns: Set[str] = {field.name for field in fields(cls)} - blacklist
         self.rows: Dict[UUID, Any] = dict()
         self.all_items: Set[UUID] = set()
-        self.column_indices: Dict[str, Dict[Any, Set[UUID]]] = {
-            field: defaultdict(set) for field in indexed_columns
+        self.column_indices: Dict[str, ColumnIndex] = {
+            field: ColumnIndex() for field in indexed_columns
         }
 
-    def get_row_by_index_column(self, column: str, value: Hashable) -> Set[UUID]:
+    def get_row_by_index_column(self, column: str, value: Indexable) -> Set[UUID]:
         """Get all ids where the row has a specific value in the
         specified column.
         """
@@ -65,7 +65,7 @@ class Table(Generic[Row]):
             column_value = getattr(row, column)
             self.column_indices[column][column_value].add(id_)
 
-    def update_row(self, id_: UUID, **values: Hashable) -> None:
+    def update_row(self, id_: UUID, **values: Indexable) -> None:
         """All keyword arguments except id_ must be field names of of
         the indexed dataclass in this table. id may not be
         updated. Trying to update a non existing row will do nothing.
@@ -80,8 +80,8 @@ class Table(Generic[Row]):
             setattr(row, column, value)
             if column not in self.column_indices:
                 continue
-            self.column_indices[column][old_value].remove(id_)
-            self.column_indices[column][value].add(id_)
+            self.column_indices[column].remove_item(old_value, id_)
+            self.column_indices[column].add_item(value, id_)
 
     def delete_row(self, id_: UUID) -> Optional[Row]:
         """The dataclass instance stored in that row will be returned.
@@ -91,7 +91,7 @@ class Table(Generic[Row]):
         if row is None:
             return None
         for column in self.column_indices:
-            self.column_indices[column][getattr(row, column)].remove(id_)
+            self.column_indices[column].remove_item(getattr(row, column), id_)
         self.all_items.remove(id_)
         del self.rows[id_]
         return row
@@ -109,9 +109,9 @@ class Table(Generic[Row]):
         compared. If reverse is set to True then the sorting order is
         reversed.
         """
-        values = sorted(self.column_indices[column].keys(), key=key, reverse=reverse)
-        for value in values:
-            yield from self.column_indices[column][value]
+        yield from self.column_indices[column].get_sorted_items(
+            key=key, reverse=reverse
+        )
 
     def __getitem__(self, key: UUID) -> Row:
         return self.rows[key]

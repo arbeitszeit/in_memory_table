@@ -1,0 +1,9 @@
+#!/usr/bin/env sh
+
+set -e
+set -x
+isort in_memory_relations tests
+black in_memory_relations tests
+flake8
+mypy
+pytest in_memory_relations tests

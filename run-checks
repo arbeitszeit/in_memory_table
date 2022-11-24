@@ -1,9 +1,0 @@
-#!/usr/bin/env sh
-
-set -e
-set -x
-isort in_memory_relations
-black in_memory_relations
-flake8
-mypy
-pytest in_memory_relations

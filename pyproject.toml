@@ -13,10 +13,6 @@ authors = [
 [tool.setuptools]
 packages = [ "in_memory_relations" ]
 
-[project.scripts]
-tests-database = "in_memory_relations.timings:main"
-
-
 [tool.black]
 target-version = ['py310']
 
@@ -26,5 +22,5 @@ multi_line_output = 3
 
 [tool.mypy]
 files = [
-    "in_memory_relations"
+    "in_memory_relations", "tests"
 ]

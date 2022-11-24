@@ -5,7 +5,7 @@ from typing import Any, Callable, Iterator, Optional, Set, TypeVar
 from unittest import TestCase
 from uuid import UUID, uuid4
 
-from .table import Table
+from in_memory_relations.table import Table
 
 UUIDQueryT = TypeVar("UUIDQueryT", bound="UUIDQuery")
 
