@@ -1,4 +1,5 @@
 from dataclasses import dataclass, field
+from typing import Tuple
 from unittest import TestCase
 from uuid import UUID, uuid4
 
@@ -13,6 +14,7 @@ class TableTests(TestCase):
         y: str = ""
 
     def setUp(self) -> None:
+        super().setUp()
         self.table = Table(cls=self.Model)
 
     def test_that_added_rows_can_be_retrieved(self) -> None:
@@ -94,3 +96,24 @@ class TableTests(TestCase):
         assert [model.id for model in models] == list(
             self.table.get_rows_sorted_by_column("x")
         )
+
+
+class ComplexIdTests(TestCase):
+    @dataclass
+    class Model:
+        id: Tuple[int, str]
+        x: int
+
+    def setUp(self) -> None:
+        super().setUp()
+        self.table = Table(cls=self.Model)
+
+    def test_can_get_items_from_table_with_complex_id(self) -> None:
+        id_ = (1, "a")
+        self.table.add_row(
+            self.Model(
+                id=id_,
+                x=2,
+            )
+        )
+        assert self.table[id_]
