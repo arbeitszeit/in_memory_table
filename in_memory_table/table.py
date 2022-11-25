@@ -5,6 +5,7 @@ from typing import (
     Any,
     Dict,
     Generic,
+    Hashable,
     Iterator,
     List,
     Optional,
@@ -13,14 +14,13 @@ from typing import (
     Type,
     TypeVar,
 )
-from uuid import UUID
 
 from .column_index import ColumnIndex, Indexable
 
 
 class HasId(Protocol):
     @property
-    def id(self) -> UUID:
+    def id(self) -> Hashable:
         ...
 
 
@@ -40,13 +40,13 @@ class Table(Generic[Row]):
         blacklist: Set[str] = set(no_index_fields or [])
         blacklist.add("id")
         indexed_columns: Set[str] = {field.name for field in fields(cls)} - blacklist
-        self.rows: Dict[UUID, Any] = dict()
-        self.all_items: Set[UUID] = set()
+        self.rows: Dict[Hashable, Any] = dict()
+        self.all_items: Set[Hashable] = set()
         self.column_indices: Dict[str, ColumnIndex] = {
             field: ColumnIndex() for field in indexed_columns
         }
 
-    def get_row_by_index_column(self, column: str, value: Indexable) -> Set[UUID]:
+    def get_row_by_index_column(self, column: str, value: Indexable) -> Set[Hashable]:
         """Get all ids where the row has a specific value in the
         specified column.
         """
@@ -67,7 +67,7 @@ class Table(Generic[Row]):
             column_value = getattr(row, column)
             self.column_indices[column].add_item(column_value, id_)
 
-    def update_row(self, id_: UUID, **values: Indexable) -> None:
+    def update_row(self, id_: Hashable, **values: Indexable) -> None:
         """All keyword arguments except id_ must be field names of of
         the indexed dataclass in this table. id may not be
         updated. Trying to update a non existing row will do nothing.
@@ -85,7 +85,7 @@ class Table(Generic[Row]):
             self.column_indices[column].remove_item(old_value, id_)
             self.column_indices[column].add_item(value, id_)
 
-    def delete_row(self, id_: UUID) -> Optional[Row]:
+    def delete_row(self, id_: Hashable) -> Optional[Row]:
         """The dataclass instance stored in that row will be returned.
         Trying to delete a non existing row will do nothing and None
         is returned."""
@@ -103,7 +103,7 @@ class Table(Generic[Row]):
         column: str,
         *,
         reverse: bool = False,
-    ) -> Iterator[UUID]:
+    ) -> Iterator[Hashable]:
         """Return all ids sorted by the value in the specified
         column. The reverse argument function equivalent to the
         reverse arguments of the sorted function.  If reverse is set
@@ -112,11 +112,11 @@ class Table(Generic[Row]):
         """
         yield from self.column_indices[column].get_sorted_items(reverse=reverse)
 
-    def __getitem__(self, key: UUID) -> Row:
+    def __getitem__(self, key: Hashable) -> Row:
         return self.rows[key]
 
-    def __contains__(self, key: UUID) -> bool:
+    def __contains__(self, key: Hashable) -> bool:
         return key in self.rows
 
-    def __delitem__(self, key: UUID) -> None:
+    def __delitem__(self, key: Hashable) -> None:
         self.delete_row(key)

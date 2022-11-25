@@ -5,7 +5,7 @@ class to construct a database that "lives" on the heap/in RAM.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Callable, Iterator, Optional, Set, TypeVar
+from typing import Callable, Iterator, Optional, Set, TypeVar, cast
 from unittest import TestCase
 from uuid import UUID, uuid4
 
@@ -133,11 +133,15 @@ class Database:
 
     def get_addresses(self) -> AddressQuery:
         return AddressQuery(
-            items=lambda: self.addresses.all_items, db=self, ordering=None
+            items=lambda: cast(Set[UUID], self.addresses.all_items),
+            db=self,
+            ordering=None,
         )
 
     def get_users(self) -> UserQuery:
-        return UserQuery(items=lambda: self.users.all_items, db=self, ordering=None)
+        return UserQuery(
+            items=lambda: cast(Set[UUID], self.users.all_items), db=self, ordering=None
+        )
 
 
 @dataclass
@@ -206,7 +210,10 @@ class UserQuery(UUIDQuery):
             results: Set[UUID] = set()
             for address in addresses:
                 results.update(
-                    self.db.users.get_row_by_index_column("address", address)
+                    cast(
+                        Set[UUID],
+                        self.db.users.get_row_by_index_column("address", address),
+                    )
                 )
             return results & self._items()
 
