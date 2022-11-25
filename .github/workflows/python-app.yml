@@ -1,4 +1,4 @@
-name: in_memory_relations CI tests
+name: in_memory_table CI tests
 
 on:
   push:
