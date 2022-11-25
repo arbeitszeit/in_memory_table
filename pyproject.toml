@@ -10,6 +10,10 @@ authors = [
     { name = "Sebastian Jordan", email = "sebastian.jordan.mail@googlemail.com"},
 ]
 readme = "README.rst"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
+]
 
 [project.license]
 text = "GPL-3.0-or-later"
