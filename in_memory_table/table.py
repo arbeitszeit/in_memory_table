@@ -67,10 +67,12 @@ class Table(Generic[Row]):
             column_value = getattr(row, column)
             self.column_indices[column].add_item(column_value, id_)
 
-    def update_row(self, id_: Hashable, **values: Indexable) -> None:
+    def update_row(self, id_: Hashable, **values: Any) -> None:
         """All keyword arguments except id_ must be field names of of
         the indexed dataclass in this table. id may not be
-        updated. Trying to update a non existing row will do nothing.
+        updated. Trying to update a non existing row will do
+        nothing. The user has to make sure that values for indexed
+        columns adhere to the Indexable protocol.
         """
         if "id" in values:
             raise ValueError("Change of id field was requested, which is illegal.")
