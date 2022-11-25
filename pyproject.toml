@@ -12,7 +12,7 @@ authors = [
 readme = "README.rst"
 
 [project.license]
-file = "LICENSE"
+text = "GPL-3.0-or-later"
 
 [tool.setuptools]
 packages = [ "in_memory_table" ]
