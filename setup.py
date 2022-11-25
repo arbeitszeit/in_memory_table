@@ -6,6 +6,7 @@ setup(
         [
             "in_memory_relations/table.py",
             "in_memory_relations/column_index.py",
+            "in_memory_relations/sorted_collection.py",
         ]
     ),
 )

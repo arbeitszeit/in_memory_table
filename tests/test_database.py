@@ -5,7 +5,7 @@ class to construct a database that "lives" on the heap/in RAM.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Callable, Iterator, Optional, Set, TypeVar
+from typing import Callable, Iterator, Optional, Set, TypeVar
 from unittest import TestCase
 from uuid import UUID, uuid4
 
@@ -145,7 +145,6 @@ class Ordering:
     column: str
     table: str
     reverse: bool = False
-    key: Optional[Callable[[Any], Any]] = None
 
 
 class UUIDQuery:
@@ -174,9 +173,8 @@ class UUIDQuery:
             table = getattr(self.db, self.ordering.table)
             yield from (
                 item
-                for item in table.get_rows_ordered_by_column(
+                for item in table.get_rows_sorted_by_column(
                     self.ordering.column,
-                    key=self.ordering.key,
                     reverse=self.ordering.reverse,
                 )
                 if item in items

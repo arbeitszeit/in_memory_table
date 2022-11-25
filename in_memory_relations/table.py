@@ -3,7 +3,6 @@ from __future__ import annotations
 from dataclasses import fields
 from typing import (
     Any,
-    Callable,
     Dict,
     Generic,
     Iterator,
@@ -66,7 +65,7 @@ class Table(Generic[Row]):
         self.all_items.add(id_)
         for column in self.column_indices:
             column_value = getattr(row, column)
-            self.column_indices[column][column_value].add(id_)
+            self.column_indices[column].add_item(column_value, id_)
 
     def update_row(self, id_: UUID, **values: Indexable) -> None:
         """All keyword arguments except id_ must be field names of of
@@ -99,22 +98,19 @@ class Table(Generic[Row]):
         del self.rows[id_]
         return row
 
-    def get_rows_ordered_by_column(
+    def get_rows_sorted_by_column(
         self,
         column: str,
         *,
-        key: Optional[Callable[[Any], Any]] = None,
         reverse: bool = False,
     ) -> Iterator[UUID]:
-        """Return all ids ordered by column. The key and reverse
-        arguments function equivalent to the key and reverse arguments
-        of the sorted function.  key changes how elements are
-        compared. If reverse is set to True then the sorting order is
-        reversed.
+        """Return all ids sorted by the value in the specified
+        column. The reverse argument function equivalent to the
+        reverse arguments of the sorted function.  If reverse is set
+        to True then the sorting order is reversed.
+
         """
-        yield from self.column_indices[column].get_sorted_items(
-            key=key, reverse=reverse
-        )
+        yield from self.column_indices[column].get_sorted_items(reverse=reverse)
 
     def __getitem__(self, key: UUID) -> Row:
         return self.rows[key]
