@@ -10,7 +10,7 @@ using `pandas <https://github.com/pandas-dev/pandas>`_ or something
 similar.
 
 in_memory_table
-===================
+===============
 
 The goal of this package is provide an easy way have the behavior of a
 relational database without the performance penalty that comes from

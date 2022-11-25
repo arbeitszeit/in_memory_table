@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools"]
+requires = ["setuptools", "mypy"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -9,9 +9,14 @@ description = "In memory indexed data"
 authors = [
     { name = "Sebastian Jordan", email = "sebastian.jordan.mail@googlemail.com"},
 ]
+readme = "README.rst"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
+]
 
 [project.license]
-file = "LICENSE"
+text = "GPL-3.0-or-later"
 
 [tool.setuptools]
 packages = [ "in_memory_table" ]
