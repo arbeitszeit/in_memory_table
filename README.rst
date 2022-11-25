@@ -9,7 +9,7 @@ you need something similar to this in your application we recommend
 using `pandas <https://github.com/pandas-dev/pandas>`_ or something
 similar.
 
-in_memory_relations
+in_memory_table
 ===================
 
 The goal of this package is provide an easy way have the behavior of a

@@ -1,6 +1,6 @@
 from unittest import TestCase
 
-from in_memory_relations.sorted_collection import SortedCollection
+from in_memory_table.sorted_collection import SortedCollection
 
 
 class SortedCollectionTests(TestCase):

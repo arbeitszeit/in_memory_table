@@ -2,7 +2,7 @@ from dataclasses import dataclass, field
 from unittest import TestCase
 from uuid import UUID, uuid4
 
-from in_memory_relations.table import Table
+from in_memory_table.table import Table
 
 
 class TableTests(TestCase):

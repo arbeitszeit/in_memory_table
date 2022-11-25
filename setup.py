@@ -4,9 +4,9 @@ from setuptools import setup
 setup(
     ext_modules=mypycify(
         [
-            "in_memory_relations/table.py",
-            "in_memory_relations/column_index.py",
-            "in_memory_relations/sorted_collection.py",
+            "in_memory_table/table.py",
+            "in_memory_table/column_index.py",
+            "in_memory_table/sorted_collection.py",
         ]
     ),
 )

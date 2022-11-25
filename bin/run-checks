@@ -2,8 +2,8 @@
 
 set -e
 set -x
-isort in_memory_relations tests
-black in_memory_relations tests
+isort in_memory_table tests
+black in_memory_table tests
 flake8
 mypy
-pytest in_memory_relations tests
+pytest in_memory_table tests

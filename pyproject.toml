@@ -3,7 +3,7 @@ requires = ["setuptools"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "in_memory_relations"
+name = "in_memory_table"
 version = "0.1"
 description = "In memory indexed data"
 authors = [
@@ -14,7 +14,7 @@ authors = [
 file = "LICENSE"
 
 [tool.setuptools]
-packages = [ "in_memory_relations" ]
+packages = [ "in_memory_table" ]
 
 [tool.black]
 target-version = ['py310']
@@ -25,5 +25,5 @@ multi_line_output = 3
 
 [tool.mypy]
 files = [
-    "in_memory_relations", "tests"
+    "in_memory_table", "tests"
 ]
