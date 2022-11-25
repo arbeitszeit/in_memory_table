@@ -92,5 +92,5 @@ class TableTests(TestCase):
             self.table.add_row(model)
         models.sort(key=lambda m: m.x)
         assert [model.id for model in models] == list(
-            self.table.get_rows_ordered_by_column("x")
+            self.table.get_rows_sorted_by_column("x")
         )

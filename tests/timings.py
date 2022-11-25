@@ -42,7 +42,7 @@ def main() -> None:
         db.create_address(street=street, district=district)
     addresses = list(db.get_addresses())
     print(f"created {n} addresses")
-    example_district = random.choice(district)
+    example_district = random.choice(districts)
     for _ in range(n):
         name = random.choice(names)
         db.create_user(name=name, address=random.choice(addresses).id)
@@ -64,9 +64,15 @@ def main() -> None:
         lambda: null(db.get_users().increase_login_count()),
     )
     print_timing("user.count", lambda: null(len(db.get_users())))
+    query = db.get_users().from_district(example_district).ordered_by_name()
     print_timing(
-        "user.ordered_by_name",
-        lambda: null(list(db.get_users().ordered_by_name())),
+        f"user.from_district.ordered_by_name len={len(query)}",
+        lambda: null(list(query)),
+    )
+    query = db.get_users().ordered_by_name().from_district(example_district)
+    print_timing(
+        f"user.ordered_by_name.from_district len={len(query)}",
+        lambda: null(list(query)),
     )
 
 
